@@ -196,7 +196,13 @@ class UserController {
           maxAge: 1000 * 60 * 60 * 24 * 15,
         });
 
-        res.json({ accessToken });
+        const userInfo = {
+          first_name: foundUser.first_name,
+          last_name: foundUser.last_name,
+          picture: foundUser.picture,
+          username: foundUser.username,
+        };
+        res.json({ accessToken, userInfo });
       }
     );
   }
