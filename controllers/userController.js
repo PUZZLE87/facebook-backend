@@ -4,7 +4,7 @@ import sendVerificationEmail from "../utilities/mailer.js";
 import jwt, { decode } from "jsonwebtoken";
 
 class UserController {
-  constructor() { }
+  constructor() {}
 
   //login
   async auth(req, res) {
@@ -70,6 +70,7 @@ class UserController {
       last_name: foundUser.last_name,
       picture: foundUser.picture,
       username: foundUser.username,
+      verified: foundUser.verified,
     };
 
     res.json({ accessToken, userInfo });
@@ -95,7 +96,7 @@ class UserController {
         { expiresIn: "30m" }
       );
 
-      const url = `${process.env.BASE_URL}/user/activate/${mailVerificationToken}`;
+      const url = `${process.env.BASE_URL}/activate/${mailVerificationToken}`;
       sendVerificationEmail(newUser.email, newUser.first_name, url);
 
       res.json({ message: "new user successfully created" });
@@ -114,6 +115,9 @@ class UserController {
 
       const foundUser = await UserModel.findById(user.id);
       if (!foundUser) return res.status(400).json({ message: "Invalid token" });
+
+      if (foundUser.id !== req.userId)
+        return res.status(403).json({ message: "Invalid token" });
 
       if (foundUser.verified === true) {
         return res
@@ -149,8 +153,10 @@ class UserController {
 
           const hackedUser = await UserModel.findOne({ id: decoded.id });
 
-          hackedUser.refreshToken = [];
-          await hackedUser.save();
+          if (hackedUser) {
+            hackedUser.refreshToken = [];
+            await hackedUser.save();
+          }
         }
       );
       return res.sendStatus(403);
@@ -165,7 +171,6 @@ class UserController {
       process.env.REFRESH_TOKEN_SECRET,
       async (err, decoded) => {
         if (err) {
-
           //change this line newRefreshTokenArray
           foundUser.refreshToken = [...newRefreshTokenArray];
           await foundUser.save();
@@ -201,10 +206,36 @@ class UserController {
           last_name: foundUser.last_name,
           picture: foundUser.picture,
           username: foundUser.username,
+          verified: foundUser.verified,
         };
         res.json({ accessToken, userInfo });
       }
     );
+  }
+
+  // resend verification email
+  async sendVerEmail(req, res) {
+    try {
+      const id = req.userId;
+      const user = await UserModel.findById(id);
+      if (user.verified === true)
+        return res
+          .status(400)
+          .json({ message: "this account is already activated" });
+
+      const mailVerificationToken = jwt.sign(
+        { id: id.toString() },
+        process.env.MAIL_JWT_TOKEN,
+        { expiresIn: "30m" }
+      );
+      const url = `${process.env.BASE_URL}/activate/${mailVerificationToken}`;
+      sendVerificationEmail(user.email, user.first_name, url);
+      return res.status(200).json({
+        message: "Email verification link has been sent to your email",
+      });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
   }
 }
 
