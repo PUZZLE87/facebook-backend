@@ -1,6 +1,6 @@
 import { body } from "express-validator";
 
-const authvalidator = () => {
+const authValidator = () => {
   return [
     body("email")
       .not()
@@ -11,4 +11,4 @@ const authvalidator = () => {
   ];
 };
 
-export default authvalidator;
+export default authValidator;

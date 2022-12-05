@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
-import randomString from "randomstring";
 import UserModel from "../models/userModel.js";
 import bcrypt from "bcrypt";
+import randomstring from "randomstring";
 
 const { ObjectId } = mongoose.Schema;
 
@@ -15,7 +15,7 @@ const userSchema = mongoose.Schema(
     },
     last_name: {
       type: String,
-      required: [true, "last name is required"],
+      required: [true, "Last name is required"],
       trim: true,
       text: true,
     },
@@ -28,9 +28,13 @@ const userSchema = mongoose.Schema(
     },
     email: {
       type: String,
+      required: [true, "Email is required"],
+      trim: true,
+    },
+    password: {
+      type: String,
       required: [true, "Password is required"],
     },
-    password: { type: String, required: true },
     picture: {
       type: String,
       trim: true,
@@ -90,17 +94,33 @@ const userSchema = mongoose.Schema(
       },
     ],
     details: {
-      bio: { type: String },
-      otherName: { type: String },
-      job: { type: String },
-      workPlace: { type: String },
-      highSchool: { type: String },
-      college: { type: String },
-      currentCity: { type: String },
-      hometown: { type: String },
+      bio: {
+        type: String,
+      },
+      otherName: {
+        type: String,
+      },
+      job: {
+        type: String,
+      },
+      workPlace: {
+        type: String,
+      },
+      highSchool: {
+        type: String,
+      },
+      college: {
+        type: String,
+      },
+      currentCity: {
+        type: String,
+      },
+      hometown: {
+        type: String,
+      },
       relationship: {
         type: String,
-        enum: ["Single", " In a relationship", "Married", "Divorced"],
+        enum: ["Single", "In a relationship", "Married", "Divorced"],
       },
       instagram: {
         type: String,
@@ -126,28 +146,30 @@ const userSchema = mongoose.Schema(
 userSchema.pre("save", async function (next) {
   let user = this;
   if (!user.isModified("password")) return next();
+
   try {
     const salt = await bcrypt.genSalt(12);
     user.password = await bcrypt.hash(user.password, salt);
+
     return next();
   } catch (err) {
     return next(err);
   }
 });
 
+userSchema.methods.comparePassword = async function (password) {
+  return bcrypt.compare(password, this.password);
+};
+
 userSchema.methods.generateUsername = async function () {
   let user = null;
   let username = this.username;
   do {
     user = await UserModel.findOne({ username });
-    if (user) username += randomString.generate(4);
+    if (user) username += randomstring.generate(4);
   } while (user);
 
   return username;
-};
-
-userSchema.methods.comparePassword = async function (password) {
-  return bcrypt.compare(password, this.password);
 };
 
 export default mongoose.model("User", userSchema);

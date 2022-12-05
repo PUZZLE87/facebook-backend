@@ -1,7 +1,8 @@
 import { validationResult } from "express-validator";
+import bcrypt from "bcrypt";
 import UserModel from "../models/userModel.js";
-import sendVerificationEmail from "../utilities/mailer.js";
 import jwt from "jsonwebtoken";
+import sendVerificationEmail from "../utilities/mailer.js";
 import CodeModel from "../models/codeModel.js";
 import randomstring from "randomstring";
 import { sendResetPasswordCode } from "../utilities/mailer.js";
@@ -9,7 +10,73 @@ import { sendResetPasswordCode } from "../utilities/mailer.js";
 class UserController {
   constructor() {}
 
-  //login
+  //register new user
+  async register(req, res) {
+    try {
+      const errors = validationResult(req);
+      if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+      }
+
+      const newUser = await new UserModel({
+        ...req.body,
+        username: req.body.first_name + req.body.last_name,
+      });
+
+      newUser.username = await newUser.generateUsername();
+
+      const mailVerificationToken = jwt.sign(
+        { id: newUser._id.toString() },
+        process.env.MAIL_JWT_TOKEN,
+        { expiresIn: "30m" }
+      ); //
+      const url = `${process.env.BASE_URL}/activate/${mailVerificationToken}`;
+
+      sendVerificationEmail(newUser.email, newUser.first_name, url);
+
+      await newUser.save();
+
+      res.json({ message: "New user successfully created" });
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
+  //verify account with token
+  async activateAccount(req, res) {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ message: "token not valid" });
+
+    const user = jwt.verify(
+      token,
+      process.env.MAIL_JWT_TOKEN,
+
+      async (err, user) => {
+        if (err) {
+          return res.status(400).json({ message: "Invalid token" });
+        }
+        const foundUser = await UserModel.findById(user.id);
+        if (!foundUser)
+          return res.status(400).json({ message: "Invalid token" });
+
+        if (foundUser.id !== req.userId)
+          return res.status(403).json({ message: "invalid token" });
+
+        if (foundUser.verified == true) {
+          return res
+            .status(400)
+            .json({ message: "this email is already activated" });
+        } else {
+          await UserModel.findByIdAndUpdate(user.id, { verified: true });
+          return res
+            .status(200)
+            .json({ message: "Account has been activated successfully" });
+        }
+      }
+    );
+  }
+
+  //authenticate and login user
   async auth(req, res) {
     const cookies = req.cookies;
 
@@ -22,11 +89,13 @@ class UserController {
 
     const foundUser = await UserModel.findOne({ email });
 
-    if (!foundUser) return res.sendStatus(401);
-
-    if (!foundUser.comparePassword(password)) {
+    if (!foundUser) {
       return res.sendStatus(401);
     }
+
+    const matchPass = await bcrypt.compare(password, foundUser.password);
+
+    if (!matchPass) return res.sendStatus(401);
 
     const accessToken = jwt.sign(
       { id: foundUser.id },
@@ -75,78 +144,17 @@ class UserController {
       username: foundUser.username,
       verified: foundUser.verified,
     };
-
     res.json({ accessToken, userInfo });
   }
 
-  //register
-  async register(req, res) {
-    try {
-      const errors = validationResult(req);
-
-      if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-      }
-
-      const newUser = await new UserModel({
-        ...req.body,
-        username: req.body.first_name + req.body.last_name,
-      });
-      newUser.username = await newUser.generateUsername();
-
-      const mailVerificationToken = jwt.sign(
-        { id: newUser._id.toString() },
-        process.env.MAIL_JWT_TOKEN,
-        { expiresIn: "30m" }
-      );
-
-      const url = `${process.env.BASE_URL}/activate/${mailVerificationToken}`;
-      sendVerificationEmail(newUser.email, newUser.first_name, url);
-
-      await newUser.save();
-
-      res.json({ message: "new user successfully created" });
-    } catch (error) {
-      res.status(500).json({ message: error.message });
-    }
-  }
-
-  //verify account with token
-  async activateAccount(req, res) {
-    const { token } = req.body;
-    if (!token) return res.status(400).json({ messge: "token not valid" });
-
-    jwt.verify(token, process.env.MAIL_JWT_TOKEN, async (err, user) => {
-      if (err) return res.status(400).json({ message: "Invalid token" });
-
-      const foundUser = await UserModel.findById(user.id);
-      if (!foundUser) return res.status(400).json({ message: "Invalid token" });
-
-      if (foundUser.id !== req.userId)
-        return res.status(403).json({ message: "Invalid token" });
-
-      if (foundUser.verified === true) {
-        return res
-          .status(400)
-          .json({ message: "this email is already activated" });
-      } else {
-        await UserModel.findByIdAndUpdate(user.id, { verified: true });
-        return res
-          .status(200)
-          .json({ message: "Account activated successfully" });
-      }
-    });
-  }
-
   //refresh token
-  async refreshToken(req, res) {
+  async refreshTokn(req, res) {
     const cookies = req.cookies;
 
     if (!cookies?.jwt) return res.sendStatus(401);
 
     const refreshToken = cookies.jwt;
-
-    res.clearCookie("jwt", { httOnly: true, sameSite: "None", secure: true });
+    res.clearCookie("jwt", { httpOnly: true, sameSite: "None", secure: true });
 
     const foundUser = await UserModel.findOne({ refreshToken });
 
@@ -165,6 +173,7 @@ class UserController {
           }
         }
       );
+
       return res.sendStatus(403);
     }
 
@@ -177,7 +186,6 @@ class UserController {
       process.env.REFRESH_TOKEN_SECRET,
       async (err, decoded) => {
         if (err) {
-          //change this line newRefreshTokenArray
           foundUser.refreshToken = [...newRefreshTokenArray];
           await foundUser.save();
         }
@@ -220,15 +228,15 @@ class UserController {
   }
 
   // resend verification email
-  async sendVerEmail(req, res) {
+  async sendVerificationEmail(req, res) {
     try {
       const id = req.userId;
       const user = await UserModel.findById(id);
-      if (user.verified === true)
+      if (user.verified === true) {
         return res
           .status(400)
-          .json({ message: "this account is already activated" });
-
+          .json({ message: "This accounst is already activated" });
+      }
       const mailVerificationToken = jwt.sign(
         { id: id.toString() },
         process.env.MAIL_JWT_TOKEN,
@@ -237,15 +245,17 @@ class UserController {
       const url = `${process.env.BASE_URL}/activate/${mailVerificationToken}`;
       sendVerificationEmail(user.email, user.first_name, url);
       return res.status(200).json({
-        message: "Email verification link has been sent to your email",
+        message: "Email verification link has been sent to your mail",
       });
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
   }
 
+  // logout user
   async logout(req, res) {
     const cookies = req.cookies;
+
     if (!cookies?.jwt) return res.sendStatus(204);
     const refreshToken = cookies.jwt;
     const foundUser = await UserModel.findOne({ refreshToken });
@@ -263,33 +273,34 @@ class UserController {
     );
     await foundUser.save();
     res.clearCookie("jwt", { httpOnly: true, sameSite: "None", secure: true });
-    res.sendStatus(204);
+    return res.sendStatus(204);
   }
 
+  // find user
   async findUser(req, res) {
     try {
       const { email } = req.body;
-      if (!email)
-        return res.status(400).json({ message: "Not valid email address" });
-      const user = await UserModel.findOne({ email }).select("-password");
-      if (!user) {
-        return res.status(400).json({ message: "Account does not exist" });
+      if (!email) {
+        return res.status(400).json({ message: "Not valid Email address" });
       }
+      const user = await UserModel.findOne({ email }).select("-password");
+      if (!user)
+        return res.status(400).json({ message: "Account does not exist" });
       res.status(200).json({ email: user?.email, picture: user?.picture });
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
   }
 
+  // send reset password email
   async sendResetPasswordCode(req, res) {
     try {
       const { email } = req.body;
       if (!email)
-        return res.status(400).json({ message: "Not valid email address" });
+        return res.status(400).json({ message: "Invalid email address" });
       const user = await UserModel.findOne({ email }).select("-password");
-      if (!user) {
-        return res.status(400).json({ message: "Account does not exist" });
-      }
+      if (!user)
+        return res.status(400).json({ message: "Account does not exists" });
       await CodeModel.findOneAndRemove({ user: user.id });
       const code = randomstring.generate(5);
       await new CodeModel({
@@ -297,27 +308,27 @@ class UserController {
         user: user.id,
       }).save();
       sendResetPasswordCode(user.email, user.first_name, code);
-      res.json({ message: "Email reset code has been sent to your email" });
+      res
+        .status(200)
+        .json({ message: "Email reset code has been sent to your email" });
     } catch (error) {
       res.status(500).json({ message: error.message });
     }
   }
 
+  // validate reset code
   async validateResetCode(req, res) {
     try {
       const { email, code } = req.body;
       if (!email || !code)
         return res.status(400).json({ message: "Email or Code is empty" });
       const user = await UserModel.findOne({ email });
-      if (!user) {
-        return res.status(400).json({ message: "Account does not exist" });
-      }
-
+      if (!user) return res.status(400).json({ message: "User not found" });
       const dbCode = await CodeModel.findOne({ user: user.id });
-      if (dbCode?.code !== code)
+      if (dbCode.code !== code)
         return res
           .status(400)
-          .json({ message: "verification code is wrong..." });
+          .json({ message: "Verification code is wrong..." });
 
       res.status(200).json({ code });
     } catch (error) {
@@ -325,25 +336,28 @@ class UserController {
     }
   }
 
+  //change password
   async changePassword(req, res) {
     const { email, password, code } = req.body;
-    if (!email || !password || !code) {
+    if (!email || !password || !code)
       return res
         .status(400)
-        .json({ message: "Email, Password or Code can not be empty" });
-    }
+        .json({ message: "Eamil, Password or Code can not be empty" });
+
     try {
       const user = await UserModel.findOne({ email });
       if (!user) return res.status(400).json({ message: "User not found" });
       const dbCode = await CodeModel.findOne({ user: user.id });
-      if (dbCode?.code !== code)
+      if (dbCode.code !== code)
         return res
           .status(400)
-          .json({ message: "verification code is wrong..." });
+          .json({ message: "Verification code is wrong..." });
+
       user.password = password;
       await user.save();
       await dbCode.remove();
-      res.json({ message: "OK" });
+
+      res.status(200).json({ message: "OK" });
     } catch (error) {
       res.status(500).json({ message: error.message });
     }

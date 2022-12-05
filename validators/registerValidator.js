@@ -5,10 +5,10 @@ const registerValidator = () => {
   return [
     body("first_name")
       .isLength({ min: 4 })
-      .withMessage("First name must be at least 4 cahracters"),
+      .withMessage("First name must be at least 4 chars long"),
     body("last_name")
       .isLength({ min: 4 })
-      .withMessage("Last name must be at least 4 cahracters"),
+      .withMessage("Last name must be at least 4 chars long"),
     body("email")
       .isEmail()
       .withMessage("Invalid email address")
@@ -21,10 +21,10 @@ const registerValidator = () => {
       }),
     body("password")
       .isLength({ min: 8 })
-      .withMessage("Password must be at least 8 characters")
+      .withMessage("Password must be at least 8 chars length")
       .matches(/(?=.*[0-9])(?=.*[!@#$%^&*])(?=.*[a-zA-Z])/)
       .withMessage(
-        "password must contain string, at least one special and one numeric character"
+        "Password must contain string, at least one special and one numeric character"
       ),
     body("bYear")
       .not()
@@ -37,13 +37,13 @@ const registerValidator = () => {
       .isEmpty()
       .withMessage("Bearth month can not be empty")
       .isInt({ min: 1, max: 12 })
-      .withMessage("Bearth mon must be between 1 and 12"),
+      .withMessage("Bearth month must be between 1 and 12"),
     body("bDay")
       .not()
       .isEmpty()
-      .withMessage("Bearth day  can not be empty")
+      .withMessage("Bearth day can not be empty")
       .isInt({ min: 1, max: 31 })
-      .withMessage("Bearth day must be between 1 and 31"),
+      .withMessage("Bearth day muse be between 1 and 31"),
     body("gender")
       .isIn(["male", "female", "custom"])
       .withMessage("gender can be male, female or custom"),

@@ -1,0 +1,11 @@
+import express from "express";
+import postController from "../../controllers/postController.js";
+import uploadController from "../../controllers/uploadController.js";
+import imageUpload from "../../middlewares/imageUpload.js";
+
+const router = express.Router();
+
+router.post("/createPost", postController.createPost);
+router.post("/uploadImages", imageUpload, uploadController.uploadImages);
+
+export default router;
