@@ -54,6 +54,31 @@ class UploadController {
       );
     });
   }
+
+  async getListImages(req, res) {
+    const { path, sort, max } = req.body;
+    cloudinary.v2.search
+      .expression(`${path}`)
+      .sort_by("created_at", `${sort}`)
+      .max_results(max)
+      .execute()
+      .then((result) => {
+        let images = [];
+        if (result?.resources?.length > 0) {
+          images = result?.resources?.map((item) => {
+            return {
+              url: item.secure_url,
+              id: item.public_id,
+            };
+          });
+        }
+        res.json(images);
+      })
+      .catch((err) => {
+        console.log(err?.message);
+        res.status(500).json({ message: "Error in get images" });
+      });
+  }
 }
 
 export default new UploadController();

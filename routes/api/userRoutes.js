@@ -3,6 +3,7 @@ import userController from "../../controllers/userController.js";
 import registerValidator from "../../validators/registerValidator.js";
 import authValidator from "../../validators/authValidator.js";
 import verifyJWT from "../../middlewares/verifyJWT.js";
+import uploadController from "../../controllers/uploadController.js";
 
 const router = express.Router();
 
@@ -20,5 +21,9 @@ router.use(verifyJWT);
 router.post("/activate", userController.activateAccount);
 router.post("/sendVerification", userController.sendVerificationEmail);
 router.get("/logout", userController.logout);
-
+router.post("/coverImages", uploadController.getListImages);
+router.post("/profileImages", uploadController.getListImages);
+router.get("/getProfile/:username", userController.getProfile);
+router.post("/updateCover", userController.updateCover);
+router.post("/updatePicture", userController.updatePicture);
 export default router;

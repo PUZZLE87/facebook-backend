@@ -362,6 +362,45 @@ class UserController {
       res.status(500).json({ message: error.message });
     }
   }
+
+  async getProfile(req, res) {
+    try {
+      const { username } = req.params;
+      if (!username)
+        return res.status(400).json({ message: "username is empty" });
+      const profile = await UserModel.findOne({ username }).select(
+        "-password -_id -refreshToken -email"
+      );
+      if (!profile) return res.status(400).json({ message: "user not found" });
+      res.json(profile);
+    } catch (error) {
+      res.status(500).json({ message: "Error in server" });
+    }
+  }
+
+  async updateCover(req, res) {
+    try {
+      const { url } = req.body;
+      await UserModel.findByIdAndUpdate(req.userId, {
+        cover: url,
+      });
+      res.json(url);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
+  async updatePicture(req, res) {
+    try {
+      const { url } = req.body;
+      await UserModel.findByIdAndUpdate(req.userId, {
+        pciture: url,
+      });
+      res.json(url);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
 }
 
 export default new UserController();
