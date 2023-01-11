@@ -394,7 +394,7 @@ class UserController {
     try {
       const { url } = req.body;
       await UserModel.findByIdAndUpdate(req.userId, {
-        pciture: url,
+        picture: url,
       });
       res.json(url);
     } catch (error) {
