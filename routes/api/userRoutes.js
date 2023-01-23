@@ -26,4 +26,5 @@ router.post("/profileImages", uploadController.getListImages);
 router.get("/getProfile/:username", userController.getProfile);
 router.post("/updateCover", userController.updateCover);
 router.post("/updatePicture", userController.updatePicture);
+router.post("/updateDetails", userController.updateDetails);
 export default router;

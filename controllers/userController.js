@@ -401,6 +401,20 @@ class UserController {
       res.status(500).json({ message: error.message });
     }
   }
+
+  async updateDetails(req, res) {
+    try {
+      const { infos } = req.body;
+      const user = await UserModel.findById(req.userId);
+
+      const details = { ...user?.details, ...infos };
+      user.details = details;
+      await user.save();
+      res.json(user.details);
+    } catch (error) {
+      res.status(500).json({ message: "error on server" });
+    }
+  }
 }
 
 export default new UserController();

@@ -66,6 +66,54 @@ class PostController {
       res.statsu(500).json({ message: error.message });
     }
   }
+  async getMyPosts(req, res) {
+    try {
+      const pageNum = parseInt(req.query.pageNum) || 1;
+      const pageLimit = parseInt(req.query.pageLimit) || 3;
+      const username = req.body?.username;
+      if (!username) return res.status(404).json({ message: "user not found" });
+      const user = await UserModel.findOne({ username });
+      if (!user) return res.status(401).json({ message: "user not found" });
+      const options = {
+        page: pageNum,
+        limit: pageLimit,
+      };
+
+      const postModelAggregate = PostModel.aggregate([
+        {
+          $match: { user: user._id },
+        },
+        {
+          $lookup: {
+            from: "users",
+            localField: "user",
+            foreignField: "_id",
+            as: "user",
+            pipeline: [
+              {
+                $project: {
+                  first_name: 1,
+                  last_name: 1,
+                  username: 1,
+                  picture: 1,
+                },
+              },
+            ],
+          },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
+      ]);
+      const posts = await PostModel.aggregatePaginate(
+        postModelAggregate,
+        options
+      );
+      res.json(posts);
+    } catch (error) {
+      res.statsu(500).json({ message: error.message });
+    }
+  }
 }
 
 export default new PostController();
